@@ -1,35 +1,67 @@
 package com.company;
 
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.IOException;
+import java.io.*;
+
+class CopyFile implements Runnable {
+    @Override
+    public void run(){
+        copyFile();
+    }
+
+    public char[] copyFile() {
+        char[] array = new char[100];
+        BufferedReader reader = null;
+        try {
+            System.out.println(
+                    "Thread " + Thread.currentThread().getId() + " is running"
+            );
+            File file = new File("testfile.txt");
+
+            reader = new BufferedReader(new FileReader(file));
+            reader.read(array);
+            System.out.println(array);
+        }
+        catch (Exception e) {
+            System.out.println("Exception is caught");
+        }
+        return array;
+    }
+}
+
+
+class WriteFile implements Runnable {
+    @Override
+    public void run() {
+        writeFile();
+    }
+
+    public void writeFile() {
+        try {
+            System.out.println(
+                    "Thread " + Thread.currentThread().getId() + " is running"
+            );
+            CopyFile reader = new CopyFile();
+            char[] array = reader.copyFile();
+            BufferedWriter writer = new BufferedWriter(new FileWriter("outputfile.txt", true));
+            writer.write(array);
+            writer.append(' ');
+
+            writer.close();
+        }  catch (Exception e) {
+            System.out.println("Exception is caught" + e);
+        }
+    }
+}
 
 public class Main {
 
     public static void main(String[] args) {
-        BufferedReader reader;
-        try {
-
-            FileReader file = new FileReader("testfile.txt");
-
-            String strCurrentLine;
-            reader = new BufferedReader(file);
-
-            while ((strCurrentLine = reader.readLine()) != null) {
-                System.out.println(strCurrentLine);
-
-                BufferedWriter writer = new BufferedWriter(new FileWriter("outputfile.txt", true));
-                writer.append(' ');
-                writer.append(strCurrentLine);
-
-                writer.close();
-            }
-            reader.close();
-        } catch (IOException e) {
-            System.out.println("Error occurred");
-            e.printStackTrace();
-        }
+        // Start read thread
+        Thread readFile = new Thread(new CopyFile());
+        readFile.start();
+        // Start write thread
+        Thread writeFile = new Thread(new WriteFile());
+        writeFile.start();
+        // copy();
     }
 }
