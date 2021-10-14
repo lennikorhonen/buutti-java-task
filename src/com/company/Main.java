@@ -1,120 +1,121 @@
 package com.company;
 
 import java.io.*;
-import java.util.concurrent.Exchanger;
+import java.util.Arrays;
 
 public class Main {
 
     public static void main(String[] args) {
-        Exchanger<char[]> exchanger = new Exchanger<>();
+        Data data = new Data();
         // Start read thread
-        Thread readFile = new Thread(new CopyFile(exchanger));
+        Thread readFile = new Thread(new CopyFile(data));
         readFile.start();
         // Start write thread
-        Thread writeFile = new Thread(new WriteFile(exchanger));
+        Thread writeFile = new Thread(new WriteFile(data));
         writeFile.start();
     }
 }
 
 class CopyFile implements Runnable {
-    /* private Exchanger<char[]> exchanger;
+    private final Data data;
+
     char[] array;
 
-    public CopyFile(char[] array, Exchanger<char[]> exchanger) {
-        this.exchanger = exchanger;
-        this.array = array;
-    }*/
-
-    Exchanger ex;
-    CopyFile(Exchanger<char[]> ex) { this.ex = ex; }
-    char[] array = new char[50];
-
+    public CopyFile(Data data) {
+        this.data = data;
+    }
     @Override
     public void run(){
-        for(int i = 0; i < 2; i++) {
-            BufferedReader reader;
-            try {
-                System.out.println(
-                        "Thread " + Thread.currentThread().getId() + " is running"
-                );
-                File file = new File("testfile.txt");
-                reader = new BufferedReader(new FileReader(file));
-                reader.read(array);
-                System.out.println("Array:" + array);
-                array = (char[]) ex.exchange(array);
-            } catch (Exception e) {
-                System.out.println("Exception is caught " + e);
-            }
-        }
-    }
+        array = new char[100];
 
-    /*public char[] copyFile() {
         BufferedReader reader;
         try {
-            System.out.println(
-                    "Thread " + Thread.currentThread().getId() + " is running"
-            );
-            File file = new File("testfile.txt");
-
+            System.out.println("Thread " + Thread.currentThread().getId() + " is running");
+            // Read file
+            File file = new File("inputfile.txt");
             reader = new BufferedReader(new FileReader(file));
             reader.read(array);
-            System.out.println(array);
+
+            System.out.println("Array:" + Arrays.toString(array));
+
+            // Send data to other thread
+            for (char array : array) {
+                data.send(array);
+            }
+            reader.close();
+        } catch (Exception e) {
+            System.out.println("Exception is caught " + e);
         }
-        catch (Exception e) {
-            System.out.println("Exception is caught");
-        }
-        return array;
-    }*/
+    }
 }
 
 class WriteFile implements Runnable {
-    /*private Exchanger<char[]> exchanger;
-    char[] array;
+    private final Data load;
 
-    public WriteFile(char[] array, Exchanger<char[]> exchanger) {
-        this.array = array;
-        this.exchanger = exchanger;
-    }*/
-    Exchanger<char[]> ex;
-    char[] array;
-
-    WriteFile(Exchanger<char[]> ex) { this.ex = ex; }
-
+    public WriteFile(Data data) {
+        this.load = data;
+    }
 
     @Override
     public void run() {
-        for(int i = 0; i < 2; i++) {
-            try {
-                System.out.println(
-                        "Thread " + Thread.currentThread().getId() + " is running"
-                );
-                array = ex.exchange(new char[50]);
-                BufferedWriter writer = new BufferedWriter(new FileWriter("outputfile.txt", true));
-                writer.write(array);
-                writer.append(' ');
-
-                writer.close();
-                System.out.println("Got:" + array);
-            } catch (Exception e) {
-                System.out.println("Exception is caught " + e);
-            }
-        }
-    }
-
-    /*public void writeFile() {
         try {
             System.out.println(
                     "Thread " + Thread.currentThread().getId() + " is running"
             );
-            CopyFile reader = new CopyFile();
-            char[] array = reader.copyFile();
-            BufferedWriter writer = new BufferedWriter(new FileWriter("outputfile.txt", true));
-            writer.write(array);
-            writer.append(' ');
 
-            writer.close();
-        }  catch (Exception e) {
-            System.out.println("Exception is caught" + e);
+            // Load data from other thread
+            for(char receive = load.receive(); ' ' != 0; receive = load.receive()) {
+                // Write to outputfile
+                BufferedWriter writer =
+                        new BufferedWriter(new FileWriter("outputfile.txt", true));
+                writer.write(receive);
+
+                writer.close();
+                System.out.println("Got:" + receive);
+            }
+        } catch (Exception e) {
+            System.out.println("Exception is caught " + e);
         }
-    }*/
+    }
 }
+
+class Data {
+    private char array;
+
+    // To check if read or write should wait
+    // True for read, false for write
+    private boolean transfer = true;
+
+    public synchronized void send(char array) {
+        while (!transfer) {
+            try {
+                System.out.println("Read wait");
+                wait();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                System.out.println("Thread interrupted" + e);
+            }
+        }
+        transfer = false;
+
+        this.array = array;
+        notifyAll();
+    }
+
+    public synchronized char receive() {
+        while (transfer) {
+            try {
+                System.out.println("Write wait");
+                wait();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                System.out.println("Thread interrupted" + e);
+            }
+        }
+        transfer = true;
+
+        notifyAll();
+        return array;
+    }
+}
+
